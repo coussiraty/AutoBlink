@@ -5,6 +5,7 @@ using ExileCore2.Shared;
 using ExileCore2.Shared.Helpers;
 using static ExileCore2.Shared.Nodes.HotkeyNodeV2;
 using Graphics = ExileCore2.Graphics;
+
 using System;
 using System.Diagnostics;
 using System.Reflection;
@@ -13,6 +14,7 @@ using System.Collections.Generic;
 using System.Threading;
 using Vector2 = System.Numerics.Vector2;
 using ExileCore2.Shared.Nodes;
+using System.Windows.Forms;
 
 namespace AutoBlink;
 
@@ -69,6 +71,50 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
 
     public override void Render()
     {
+        DrawNotification();
+        DrawWeaponSetVisual();
+    }
+
+    private void DrawWeaponSetVisual()
+    {
+        if (!Settings.WeaponSetVisualSettings.Enabled) return;
+
+        int activeWeaponSet = getActiveWeaponSet();
+
+        var weaponSetVisualText = activeWeaponSet == 0
+            ? "WeaponSet 1"
+            : "WeaponSet 2";
+
+        DebugWindow.LogMsg(weaponSetVisualText);
+
+        var weaponSetVisualColor = activeWeaponSet == 0
+            ? Settings.WeaponSetVisualSettings.WeaponSet1Color
+            : Settings.WeaponSetVisualSettings.WeaponSet2Color;
+
+        if (Settings.WeaponSetVisualSettings.Background)
+        {
+            var backgroundArea = Graphics.MeasureText(weaponSetVisualText);
+
+            float bgPositionLeft = Settings.WeaponSetVisualSettings.PositionX;
+            float bgPositionTop = Settings.WeaponSetVisualSettings.PositionY;
+
+            DrawBackground(backgroundArea, bgPositionLeft, bgPositionTop);
+        }
+
+        float padding = 5;
+
+        float positionX = Settings.WeaponSetVisualSettings.PositionX + padding;
+        float positionY = Settings.WeaponSetVisualSettings.PositionY + padding;
+
+        var textArea = new Vector2(positionX, positionY);
+
+        Graphics.DrawText(weaponSetVisualText, textArea, weaponSetVisualColor);
+    }
+
+    private void DrawNotification()
+    {
+        if (!Settings.NotificationSettings.Enabled) return;
+
         ActorSkill blink = getActorSkill(_blinkSkillName);
         bool isOnCooldown = blink.IsOnCooldown;
 
@@ -80,23 +126,32 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
             ? Settings.NotificationSettings.UnavailableColor
             : Settings.NotificationSettings.AvailableColor;
 
-        var notificationTextArea = Graphics.MeasureText(notificationText);
-        
-        DrawBackground(notificationTextArea);
-        DrawNotification(notificationText, notificationColor);
+        if (Settings.NotificationSettings.Background)
+        {
+            var backgroundArea = Graphics.MeasureText(notificationText);
+
+            float bgPositionLeft = Settings.NotificationSettings.PositionX;
+            float bgPositionTop = Settings.NotificationSettings.PositionY;
+
+            DrawBackground(backgroundArea, bgPositionLeft, bgPositionTop);
+        }
+
+        float padding = 5;
+
+        float positionX = Settings.NotificationSettings.PositionX + padding;
+        float positionY = Settings.NotificationSettings.PositionY + padding;
+
+        var textArea = new Vector2(positionX, positionY);
+
+        Graphics.DrawText(notificationText, textArea, notificationColor);
     }
 
-    private void DrawBackground(Vector2 textArea)
+    private void DrawBackground(Vector2 backgroundArea, float positionLeft, float positionTop)
     {
-        if (!Settings.NotificationSettings.Background) return;
-
         float margin = 15;
 
-        float positionLeft = Settings.NotificationSettings.NotificationPositionX;
-        float positionTop = Settings.NotificationSettings.NotificationPositionY;
-
-        float positionRight = positionLeft + textArea.X + margin;
-        float positionBottom = positionTop + textArea.Y + margin;
+        float positionRight = positionLeft + backgroundArea.X + margin;
+        float positionBottom = positionTop + backgroundArea.Y + margin;
 
         Graphics.DrawBox(new RectangleF
         {
@@ -107,18 +162,6 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
         }, Settings.NotificationSettings.BackgroundColor);
     }
 
-    private void DrawNotification(string notificationText, ColorNode notificationColor)
-    {            
-        float padding = 5;
-
-        float positionX = Settings.NotificationSettings.NotificationPositionX + padding;
-        float positionY = Settings.NotificationSettings.NotificationPositionY + padding;
-
-        var textArea = new Vector2(positionX, positionY);
-        
-        Graphics.DrawText(notificationText, textArea, notificationColor);
-    }
-   
     private void autoBlink()
     {
         try
@@ -142,6 +185,7 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
             if (weaponSetChanged)
             {
                 pressKey(weaponSetSwapKey);
+                DebugWindow.LogMsg("Weaponset swapped to: " + getActiveWeaponSet().ToString());
             }
         }
         catch (Exception ex)
@@ -154,17 +198,18 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
     {
         Stats stats = GameController.Player.GetComponent<Stats>();
 
-        return stats?.ActiveWeaponSetIndex ?? -1;
+        return stats?.ActiveWeaponSetIndex ?? 0;
     }
 
     private void pressKey(HotkeyNodeValue key)
     {
         InputHelper.SendInputPress(key);
+        DebugWindow.LogMsg("Key pressed: " + key.ToString());
 
         // Add a safety delay in between key presses
         Thread.Sleep(safetyDelay);
     }
-    
+
     private ActorSkill getActorSkill(string skillName = null)
     {
         Actor _actor = GameController.Player.GetComponent<Actor>();

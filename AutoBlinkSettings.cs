@@ -10,6 +10,7 @@ public class AutoBlinkSettings : ISettings
 {
     public BlinkSettings BlinkSettings { get; set; } = new BlinkSettings();
     public NotificationSettings NotificationSettings { get; set; } = new NotificationSettings();
+    public WeaponSetVisualSettings WeaponSetVisualSettings { get; set; } = new WeaponSetVisualSettings();
     public ToggleNode Enable { get; set; } = new ToggleNode(false);
 }
 
@@ -31,13 +32,24 @@ public class BlinkSettings
 public class NotificationSettings
 {
     public ToggleNode Enabled { get; set; } = new ToggleNode(true);
-    public TextNode AvailableText { get; set; } = "READY";
+    public TextNode AvailableText { get; set; } = "BLINK READY";
     public ColorNode AvailableColor { get; set; } = Color.Green;
     public TextNode UnavailableText { get; set; } = "COOLDOWN";
     public ColorNode UnavailableColor { get; set; } = Color.Red;
-    public RangeNode<int> NotificationPositionX { get; set; } = new RangeNode<int>(680, 0, 2000);
-    public RangeNode<int> NotificationPositionY { get; set; } = new RangeNode<int>(1236, 0, 2000);
+    public RangeNode<int> PositionX { get; set; } = new RangeNode<int>(1233, 0, 2000);
+    public RangeNode<int> PositionY { get; set; } = new RangeNode<int>(434, 0, 2000);
+    public ToggleNode Background { get; set; } = new ToggleNode(true);
+    public ColorNode BackgroundColor { get; set; } = Color.FromArgb(197, 0, 0, 0);
+}
 
+[Submenu]
+public class WeaponSetVisualSettings
+{
+    public ToggleNode Enabled { get; set; } = new ToggleNode(true);
+    public ColorNode WeaponSet1Color { get; set; } = Color.Red;
+    public ColorNode WeaponSet2Color { get; set; } = Color.Green;
+    public RangeNode<int> PositionX { get; set; } = new RangeNode<int>(1233, 0, 2000);
+    public RangeNode<int> PositionY { get; set; } = new RangeNode<int>(401, 0, 2000);
     public ToggleNode Background { get; set; } = new ToggleNode(true);
     public ColorNode BackgroundColor { get; set; } = Color.FromArgb(197, 0, 0, 0);
 }
