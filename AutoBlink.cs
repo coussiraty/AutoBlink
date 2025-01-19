@@ -85,8 +85,6 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
             ? "WeaponSet 1"
             : "WeaponSet 2";
 
-        DebugWindow.LogMsg(weaponSetVisualText);
-
         var weaponSetVisualColor = activeWeaponSet == 0
             ? Settings.WeaponSetVisualSettings.WeaponSet1Color
             : Settings.WeaponSetVisualSettings.WeaponSet2Color;
