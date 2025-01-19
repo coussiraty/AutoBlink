@@ -5,7 +5,6 @@ using ExileCore2.Shared;
 using ExileCore2.Shared.Helpers;
 using static ExileCore2.Shared.Nodes.HotkeyNodeV2;
 using Graphics = ExileCore2.Graphics;
-
 using System;
 using System.Diagnostics;
 using System.Reflection;
@@ -14,7 +13,6 @@ using System.Collections.Generic;
 using System.Threading;
 using Vector2 = System.Numerics.Vector2;
 using ExileCore2.Shared.Nodes;
-using System.Windows.Forms;
 
 namespace AutoBlink;
 
@@ -57,7 +55,6 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
 
         if (!GameController.Window.IsForeground())
         {
-            DebugWindow.LogError("Game window is not focused");
             return;
         }
 
@@ -145,7 +142,6 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
             if (weaponSetChanged)
             {
                 pressKey(weaponSetSwapKey);
-                DebugWindow.LogMsg("Weaponset swapped to: " + getActiveWeaponSet().ToString());
             }
         }
         catch (Exception ex)
@@ -164,7 +160,6 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
     private void pressKey(HotkeyNodeValue key)
     {
         InputHelper.SendInputPress(key);
-        DebugWindow.LogMsg("Key pressed: " + key.ToString());
 
         // Add a safety delay in between key presses
         Thread.Sleep(safetyDelay);
