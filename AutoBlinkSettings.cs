@@ -53,10 +53,14 @@ public class BlinkText
 {
     public ToggleNode Enabled { get; set; } = new ToggleNode(true);
 
+    [Menu(null, "This will either make the alert fixed switching colors or only displays it when Blink is available.")]
+    public ToggleNode Fixed { get; set; } = new ToggleNode(true);
     public ToggleNode ShowInTown { get; set; } = new ToggleNode(false);
     public ToggleNode ShowInHideout { get; set; } = new ToggleNode(true);
     public TextNode AvailableText { get; set; } = "BLINK READY";
     public ColorNode AvailableColor { get; set; } = Color.Green;
+    public TextNode UnavailableText { get; set; } = "COOLDOWN";
+    public ColorNode UnavailableColor { get; set; } = Color.Red;
     public RangeNode<int> PositionX { get; set; } = new RangeNode<int>(1230, 0, 2000);
     public RangeNode<int> PositionY { get; set; } = new RangeNode<int>(434, 0, 2000);
     public ToggleNode Background { get; set; } = new ToggleNode(true);
@@ -82,18 +86,22 @@ public class BlinkImage
 public class WeaponSet
 {
     [Menu(null, "A visual message will appear if the current WeaponSet selected is different from your main one.")]
-    public WeaponSetText WarningText { get; set; } = new WeaponSetText();
+    public WeaponSetText Text { get; set; } = new WeaponSetText();
 }
 
 [Submenu]
 public class WeaponSetText
 {
     public ToggleNode Enabled { get; set; } = new ToggleNode(true);
+
+    [Menu(null, "Always show currently Weapon Set or just alert when is not the main one.")]
+    public ToggleNode Fixed { get; set; } = new ToggleNode(true);
     public ToggleNode ShowInTown { get; set; } = new ToggleNode(false);
     public ToggleNode ShowInHideout { get; set; } = new ToggleNode(true);
     public TextNode WeaponSet1Text { get; set; } = "WeaponSet 1";
+    public ColorNode WeaponSet1Color { get; set; } = Color.Red;
     public TextNode WeaponSet2Text { get; set; } = "WeaponSet 2";
-    public ColorNode TextColor { get; set; } = Color.Red;
+    public ColorNode WeaponSet2Color { get; set; } = Color.Green;
     public RangeNode<int> PositionX { get; set; } = new RangeNode<int>(1230, 0, 2000);
     public RangeNode<int> PositionY { get; set; } = new RangeNode<int>(401, 0, 2000);
     public ToggleNode Background { get; set; } = new ToggleNode(true);

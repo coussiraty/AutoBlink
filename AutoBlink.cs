@@ -24,11 +24,11 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
     private IngameUIElements IngameUi => GameController.IngameState.IngameUi;
     ActorSkill blinkSkill = null;
     private bool initialised = false;
-    private bool runPlugin => 
+    private bool runPlugin =>
         Settings.Enable
         && initialised
         && Settings.IgnoreUIElements
-        || (!IngameUi.TreePanel.IsVisible 
+        || (!IngameUi.TreePanel.IsVisible
             && !IngameUi.ChatTitlePanel.IsVisible);
     private int safetyDelay => Settings.SafetyDelay;
     private int blinkAnimationDelay => Settings.BlinkAnimationDelay;
@@ -50,7 +50,7 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
     private IntPtr imageId;
 
     public override bool Initialise()
-    {       
+    {
         initialised = true;
 
         return base.Initialise();
@@ -60,7 +60,7 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
     {
         if (!runPlugin) return;
 
-        if(!LoadBlinkSkill()) return;
+        if (!LoadBlinkSkill()) return;
 
         RestoreSourceWeaponSet();
         RunAutoBlink();
@@ -70,7 +70,7 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
     {
         if (!runPlugin) return;
 
-        if(!LoadBlinkSkill()) return;
+        if (!LoadBlinkSkill()) return;
 
         RenderTextBlink();
         RenderTextWeaponSet();
@@ -78,36 +78,38 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
     }
 
     private void RenderTextWeaponSet()
-    {        
-        if (!Settings.Render.WeaponSet.WarningText.Enabled
-            || !Settings.Render.WeaponSet.WarningText.ShowInTown && GameController.Area.CurrentArea.IsTown
-            || !Settings.Render.WeaponSet.WarningText.ShowInHideout && GameController.Area.CurrentArea.IsHideout)
+    {
+        if (!Settings.Render.WeaponSet.Text.Enabled
+            || !Settings.Render.WeaponSet.Text.ShowInTown && GameController.Area.CurrentArea.IsTown
+            || !Settings.Render.WeaponSet.Text.ShowInHideout && GameController.Area.CurrentArea.IsHideout)
         {
             return;
         }
 
         int activeWeaponSet = GetActiveWeaponSet();
 
-        if(activeWeaponSet != targetWeaponSet) return;
+        if (activeWeaponSet != targetWeaponSet && !Settings.Render.WeaponSet.Text.Fixed) return;
 
         var text = activeWeaponSet == 0
-            ? Settings.Render.WeaponSet.WarningText.WeaponSet1Text
-            : Settings.Render.WeaponSet.WarningText.WeaponSet2Text;
+            ? Settings.Render.WeaponSet.Text.WeaponSet1Text
+            : Settings.Render.WeaponSet.Text.WeaponSet2Text;
 
-        var color = Settings.Render.WeaponSet.WarningText.TextColor;
+        var color = activeWeaponSet == 0
+            ? Settings.Render.WeaponSet.Text.WeaponSet1Color
+            : Settings.Render.WeaponSet.Text.WeaponSet2Color;
 
-        if (Settings.Render.WeaponSet.WarningText.Background)
+        if (Settings.Render.WeaponSet.Text.Background)
         {
-            float bgPositionLeft = Settings.Render.WeaponSet.WarningText.PositionX;
-            float bgPositionTop = Settings.Render.WeaponSet.WarningText.PositionY;
+            float bgPositionLeft = Settings.Render.WeaponSet.Text.PositionX;
+            float bgPositionTop = Settings.Render.WeaponSet.Text.PositionY;
 
-            ColorNode bgColor = Settings.Render.WeaponSet.WarningText.BackgroundColor;
+            ColorNode bgColor = Settings.Render.WeaponSet.Text.BackgroundColor;
 
             helpers.DrawBackgroundRectangle(Graphics, text, bgColor, bgPositionLeft, bgPositionTop);
         }
 
-        float positionX = Settings.Render.WeaponSet.WarningText.PositionX;
-        float positionY = Settings.Render.WeaponSet.WarningText.PositionY;
+        float positionX = Settings.Render.WeaponSet.Text.PositionX;
+        float positionY = Settings.Render.WeaponSet.Text.PositionY;
 
         helpers.DrawText(Graphics, text, color, positionX, positionY);
     }
@@ -123,11 +125,21 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
 
         bool isBlinkInCooldown = helpers.IsBlinkInCooldown(GameController);
 
-        if(isBlinkInCooldown) return;
+        if (isBlinkInCooldown && !Settings.Render.Blink.Text.Fixed) return;
 
         var text = Settings.Render.Blink.Text.AvailableText;
-
         var color = Settings.Render.Blink.Text.AvailableColor;
+
+        if (Settings.Render.Blink.Text.Fixed)
+        {
+            text = isBlinkInCooldown
+                ? Settings.Render.Blink.Text.UnavailableText
+                : Settings.Render.Blink.Text.AvailableText;
+
+            color = isBlinkInCooldown
+                ? Settings.Render.Blink.Text.UnavailableColor
+                : Settings.Render.Blink.Text.AvailableColor;
+        }
 
         if (Settings.Render.Blink.Text.Background)
         {
@@ -225,7 +237,7 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
             {
                 PressKey(keyWeaponSwap);
             }
-            
+
             weaponSetChanged = false;
         }
     }
