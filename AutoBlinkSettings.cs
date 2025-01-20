@@ -54,7 +54,7 @@ public class BlinkText
     public ToggleNode Enabled { get; set; } = new ToggleNode(true);
 
     [Menu(null, "This will either make the alert fixed switching colors or only displays it when Blink is available.")]
-    public ToggleNode Fixed { get; set; } = new ToggleNode(true);
+    public ToggleNode AlwaysShow { get; set; } = new ToggleNode(true);
     public ToggleNode ShowInTown { get; set; } = new ToggleNode(false);
     public ToggleNode ShowInHideout { get; set; } = new ToggleNode(true);
     public TextNode AvailableText { get; set; } = "BLINK READY";
@@ -95,7 +95,7 @@ public class WeaponSetText
     public ToggleNode Enabled { get; set; } = new ToggleNode(true);
 
     [Menu(null, "Always show currently Weapon Set or just alert when is not the main one.")]
-    public ToggleNode Fixed { get; set; } = new ToggleNode(true);
+    public ToggleNode AlwaysShow { get; set; } = new ToggleNode(true);
     public ToggleNode ShowInTown { get; set; } = new ToggleNode(false);
     public ToggleNode ShowInHideout { get; set; } = new ToggleNode(true);
     public TextNode WeaponSet1Text { get; set; } = "WeaponSet 1";

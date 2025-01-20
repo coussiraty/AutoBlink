@@ -88,7 +88,7 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
 
         int activeWeaponSet = GetActiveWeaponSet();
 
-        if (activeWeaponSet != targetWeaponSet && !Settings.Render.WeaponSet.Text.Fixed) return;
+        if (activeWeaponSet != targetWeaponSet && !Settings.Render.WeaponSet.Text.AlwaysShow) return;
 
         var text = activeWeaponSet == 0
             ? Settings.Render.WeaponSet.Text.WeaponSet1Text
@@ -125,12 +125,12 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
 
         bool isBlinkInCooldown = helpers.IsBlinkInCooldown(GameController);
 
-        if (isBlinkInCooldown && !Settings.Render.Blink.Text.Fixed) return;
+        if (isBlinkInCooldown && !Settings.Render.Blink.Text.AlwaysShow) return;
 
         var text = Settings.Render.Blink.Text.AvailableText;
         var color = Settings.Render.Blink.Text.AvailableColor;
 
-        if (Settings.Render.Blink.Text.Fixed)
+        if (Settings.Render.Blink.Text.AlwaysShow)
         {
             text = isBlinkInCooldown
                 ? Settings.Render.Blink.Text.UnavailableText
