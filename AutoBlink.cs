@@ -1,289 +1,258 @@
 ﻿using ExileCore2;
-using ExileCore2.PoEMemory.MemoryObjects;
 using ExileCore2.PoEMemory.Components;
-using ExileCore2.Shared;
+using ExileCore2.PoEMemory.MemoryObjects;
+using ExileCore2.Shared.Cache;
 using ExileCore2.Shared.Helpers;
+using ExileCore2.Shared.Nodes;
 using static ExileCore2.Shared.Nodes.HotkeyNodeV2;
 using Graphics = ExileCore2.Graphics;
 
 using System;
 using System.Diagnostics;
-using System.Reflection;
+using System.IO;
 using System.Linq;
-using System.Collections.Generic;
 using System.Threading;
-using Vector2 = System.Numerics.Vector2;
-using ExileCore2.Shared.Nodes;
-using System.Windows.Forms;
 
 namespace AutoBlink;
 
 public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
 {
-    private int safetyDelay => Settings.BlinkSettings.SafetyDelay;
     private readonly string _blinkSkillName = "BlinkPlayer";
-    private float blinkCooldown = 0;
+    private Helpers helpers;
+    private Camera Camera => GameController.IngameState.Camera;
+    private bool passiveTreeOpen = false;
+    private IngameUIElements IngameUi => GameController.IngameState.IngameUi;
+    ActorSkill blinkSkill = null;
+    private bool initialised = false;
+    private bool runPlugin => 
+        Settings.Enable
+        && initialised
+        && Settings.IgnoreUIElements
+        || (!IngameUi.TreePanel.IsVisible 
+            && !IngameUi.ChatTitlePanel.IsVisible);
+    private int safetyDelay => Settings.SafetyDelay;
+    private int blinkAnimationDelay => Settings.BlinkAnimationDelay;
+
+    private int targetWeaponSet => Settings.WeaponSet == "2" ? 1 : 0;
+
+    private float blinkCooldown = 1000;
     private readonly Stopwatch _blinkCooldownStopWatch = Stopwatch.StartNew();
-    private bool BlinkInCooldown => _blinkCooldownStopWatch.ElapsedMilliseconds <= blinkCooldown;
-    private HotkeyNode blinkHotKey => Settings.BlinkSettings.BlinkHotkey;
-    private HotkeyNodeValue weaponSetSwapKey => Settings.BlinkSettings.WeaponSetSwapKey.Value;
-    private HotkeyNodeValue dodgeKey => Settings.BlinkSettings.DodgeKey.Value;
-    private int blinkWeaponSet => Settings.BlinkSettings.BlinkWeaponSet == "1" ? 0 : 1;
+    private bool blinkInCooldown => _blinkCooldownStopWatch.ElapsedMilliseconds <= blinkCooldown;
+
+    private HotkeyNode keyBlink => Settings.KeyAutoBlink;
+    private HotkeyNodeValue keyWeaponSwap => Settings.KeyWeaponSwap.Value;
+    private HotkeyNodeValue keyDodgeRoll => Settings.KeyDodgeRoll.Value;
+
+    private int sourceWeaponSet = 0;
+    private bool weaponSetChanged = false;
+    private string imageFilename = "blink.png";
+    private const string imagePath = "images\\blink.png";
+    private IntPtr imageId;
 
     public override bool Initialise()
-    {
-        Actor actor = GameController.Player.GetComponent<Actor>();
-        List<ActorSkill> actorSkills = actor.ActorSkills;
-        ActorSkill blinkSkill = actorSkills.FirstOrDefault(s => s.Name == _blinkSkillName);
+    {       
+        initialised = true;
 
-        // set blink cooldown
-        blinkCooldown = blinkSkill.Cooldown;
-
-        return true;
-    }
-
-    public override void AreaChange(AreaInstance area)
-    {
-        //Perform once-per-zone processing here
-        //For example, Radar builds the zone map texture here
+        return base.Initialise();
     }
 
     public override void Tick()
     {
-        if (!Settings.Enable)
-        {
-            return;
-        }
+        if (!runPlugin) return;
 
-        if (!GameController.Window.IsForeground())
-        {
-            return;
-        }
+        if(!LoadBlinkSkill()) return;
 
-        if (!GameController.Player.HasComponent<Actor>())
-        {
-            DebugWindow.LogError("Cannot find player Actor component");
-            return;
-        }
-
+        RestoreSourceWeaponSet();
         RunAutoBlink();
     }
 
     public override void Render()
     {
-        DrawNotification();
-        DrawWeaponSetVisual();
+        if (!runPlugin) return;
+
+        if(!LoadBlinkSkill()) return;
+
+        RenderTextBlink();
+        RenderTextWeaponSet();
+        RenderImageBlink();
     }
 
-    private void DrawWeaponSetVisual()
-    {
-        if (!Settings.WeaponSetVisualSettings.Enabled) return;
-
-        int activeWeaponSet = getActiveWeaponSet();
-
-        var weaponSetVisualText = activeWeaponSet == 0
-            ? "WeaponSet 1"
-            : "WeaponSet 2";
-
-        var weaponSetVisualColor = activeWeaponSet == 0
-            ? Settings.WeaponSetVisualSettings.WeaponSet1Color
-            : Settings.WeaponSetVisualSettings.WeaponSet2Color;
-
-        if (Settings.WeaponSetVisualSettings.Background)
+    private void RenderTextWeaponSet()
+    {        
+        if (!Settings.Render.WeaponSet.WarningText.Enabled
+            || !Settings.Render.WeaponSet.WarningText.ShowInTown && GameController.Area.CurrentArea.IsTown
+            || !Settings.Render.WeaponSet.WarningText.ShowInHideout && GameController.Area.CurrentArea.IsHideout)
         {
-            var backgroundArea = Graphics.MeasureText(weaponSetVisualText);
-
-            float bgPositionLeft = Settings.WeaponSetVisualSettings.PositionX;
-            float bgPositionTop = Settings.WeaponSetVisualSettings.PositionY;
-
-            DrawBackground(backgroundArea, bgPositionLeft, bgPositionTop);
+            return;
         }
 
-        float padding = 5;
+        int activeWeaponSet = GetActiveWeaponSet();
 
-        float positionX = Settings.WeaponSetVisualSettings.PositionX + padding;
-        float positionY = Settings.WeaponSetVisualSettings.PositionY + padding;
+        if(activeWeaponSet != targetWeaponSet) return;
 
-        var textArea = new Vector2(positionX, positionY);
+        var text = activeWeaponSet == 0
+            ? Settings.Render.WeaponSet.WarningText.WeaponSet1Text
+            : Settings.Render.WeaponSet.WarningText.WeaponSet2Text;
 
-        Graphics.DrawText(weaponSetVisualText, textArea, weaponSetVisualColor);
-    }
+        var color = Settings.Render.WeaponSet.WarningText.TextColor;
 
-    private void DrawNotification()
-    {
-        if (!Settings.NotificationSettings.Enabled) return;
-
-        ActorSkill blink = getActorSkill(_blinkSkillName);
-        bool isOnCooldown = blink.IsOnCooldown;
-
-        var notificationText = isOnCooldown
-            ? Settings.NotificationSettings.UnavailableText
-            : Settings.NotificationSettings.AvailableText;
-
-        var notificationColor = isOnCooldown
-            ? Settings.NotificationSettings.UnavailableColor
-            : Settings.NotificationSettings.AvailableColor;
-
-        if (Settings.NotificationSettings.Background)
+        if (Settings.Render.WeaponSet.WarningText.Background)
         {
-            var backgroundArea = Graphics.MeasureText(notificationText);
+            float bgPositionLeft = Settings.Render.WeaponSet.WarningText.PositionX;
+            float bgPositionTop = Settings.Render.WeaponSet.WarningText.PositionY;
 
-            float bgPositionLeft = Settings.NotificationSettings.PositionX;
-            float bgPositionTop = Settings.NotificationSettings.PositionY;
+            ColorNode bgColor = Settings.Render.WeaponSet.WarningText.BackgroundColor;
 
-            DrawBackground(backgroundArea, bgPositionLeft, bgPositionTop);
+            helpers.DrawBackgroundRectangle(Graphics, text, bgColor, bgPositionLeft, bgPositionTop);
         }
 
-        float padding = 5;
+        float positionX = Settings.Render.WeaponSet.WarningText.PositionX;
+        float positionY = Settings.Render.WeaponSet.WarningText.PositionY;
 
-        float positionX = Settings.NotificationSettings.PositionX + padding;
-        float positionY = Settings.NotificationSettings.PositionY + padding;
-
-        var textArea = new Vector2(positionX, positionY);
-
-        Graphics.DrawText(notificationText, textArea, notificationColor);
+        helpers.DrawText(Graphics, text, color, positionX, positionY);
     }
 
-    private void DrawBackground(Vector2 backgroundArea, float positionLeft, float positionTop)
+    private void RenderTextBlink()
     {
-        float margin = 15;
-
-        float positionRight = positionLeft + backgroundArea.X + margin;
-        float positionBottom = positionTop + backgroundArea.Y + margin;
-
-        Graphics.DrawBox(new RectangleF
+        if (!Settings.Render.Blink.Text.Enabled
+            || !Settings.Render.Blink.Text.ShowInTown && GameController.Area.CurrentArea.IsTown
+            || !Settings.Render.Blink.Text.ShowInHideout && GameController.Area.CurrentArea.IsHideout)
         {
-            Left = positionLeft,
-            Top = positionTop,
-            Right = positionRight,
-            Bottom = positionBottom,
-        }, Settings.NotificationSettings.BackgroundColor);
+            return;
+        }
+
+        bool isBlinkInCooldown = helpers.IsBlinkInCooldown(GameController);
+
+        if(isBlinkInCooldown) return;
+
+        var text = Settings.Render.Blink.Text.AvailableText;
+
+        var color = Settings.Render.Blink.Text.AvailableColor;
+
+        if (Settings.Render.Blink.Text.Background)
+        {
+            float bgPositionLeft = Settings.Render.Blink.Text.PositionX;
+            float bgPositionTop = Settings.Render.Blink.Text.PositionY;
+
+            ColorNode bgColor = Settings.Render.Blink.Text.BackgroundColor;
+
+            helpers.DrawBackgroundRectangle(Graphics, text, bgColor, bgPositionLeft, bgPositionTop);
+        }
+
+        float textPositionX = Settings.Render.Blink.Text.PositionX;
+        float textPositionY = Settings.Render.Blink.Text.PositionY;
+
+        helpers.DrawText(Graphics, text, color, textPositionX, textPositionY);
     }
 
-    private void autoBlink()
+    private void RenderImageBlink()
     {
-        try
+        if (!Settings.Render.Blink.Image.Enabled
+            || !Settings.Render.Blink.Image.ShowInTown && GameController.Area.CurrentArea.IsTown
+            || !Settings.Render.Blink.Image.ShowInHideout && GameController.Area.CurrentArea.IsHideout)
         {
-            bool weaponSetChanged = false;
-            int sourceWeaponSet = getActiveWeaponSet();
-            int targetWeaponSet = blinkWeaponSet;
+            return;
+        }
 
-            if (targetWeaponSet != sourceWeaponSet)
+        bool isBlinkInCooldown = helpers.IsBlinkInCooldown(GameController);
+
+        var imgColor = isBlinkInCooldown
+            ? Settings.Render.Blink.Image.ColorCooldown
+            : Settings.Render.Blink.Image.ColorAvailable;
+
+        float imgPosX = Settings.Render.Blink.Image.PositionX;
+        float imgPosY = Settings.Render.Blink.Image.PositionY;
+        float imgSizeX = Settings.Render.Blink.Image.SizeX;
+        float imgSizeY = Settings.Render.Blink.Image.SizeY;
+
+        helpers.DrawImage(Graphics, DirectoryFullName, imagePath, imageFilename, imgPosX, imgPosY, imgSizeX, imgSizeY, imgColor);
+    }
+
+    private void RunAutoBlink()
+    {
+        bool autoBlinkHotkeyPressed = Input.IsKeyDown(keyBlink);
+
+        if (autoBlinkHotkeyPressed)
+        {
+            if (!blinkInCooldown && blinkSkill.CanBeUsed)
             {
-                pressKey(weaponSetSwapKey);
-                weaponSetChanged = true;
+                // ActorSkill blinkSkill = helpers.FetchBlinkSkill(GameController);
+
+                // if (blinkSkill == null) 
+                // {
+                //     DebugWindow.LogError("The plugin could not find the Blink skill. Please check your skills and try again.");
+                //     return;
+
+                // }
+
+                try
+                {
+                    sourceWeaponSet = GetActiveWeaponSet();
+                    DebugWindow.LogMsg("Current WeaponSet: " + GetActiveWeaponSet().ToString());
+
+                    if (targetWeaponSet != sourceWeaponSet)
+                    {
+                        PressKey(keyWeaponSwap);
+                        weaponSetChanged = true;
+                    }
+
+                    // use Blink Skill by pressing dodge roll key
+                    // after blink needs a minimal extra delay before any other actions to account for the animation
+                    PressKey(keyDodgeRoll);
+
+                    // Add a safety delay in between key presses
+                    Thread.Sleep(blinkAnimationDelay);
+
+                    _blinkCooldownStopWatch.Restart();
+                }
+                catch (Exception ex)
+                {
+                    DebugWindow.LogError($"{ex.Message}");
+                }
             }
-
-            pressKey(dodgeKey);
-            _blinkCooldownStopWatch.Restart();
-
-            // Add a safety delay in between key presses
-            Thread.Sleep(safetyDelay + 100);
-
-            if (weaponSetChanged)
-            {
-                pressKey(weaponSetSwapKey);
-                DebugWindow.LogMsg("Weaponset swapped to: " + getActiveWeaponSet().ToString());
-            }
-        }
-        catch (Exception ex)
-        {
-            DebugWindow.LogError($"{ex.Message}");
         }
     }
 
-    private int getActiveWeaponSet()
+    private void PressKey(HotkeyNodeValue key)
+    {
+        InputHelper.SendInputPress(key);
+        Thread.Sleep(safetyDelay);
+    }
+
+    private int GetActiveWeaponSet()
     {
         Stats stats = GameController.Player.GetComponent<Stats>();
 
         return stats?.ActiveWeaponSetIndex ?? 0;
     }
 
-    private void pressKey(HotkeyNodeValue key)
+    public void RestoreSourceWeaponSet()
     {
-        InputHelper.SendInputPress(key);
-        DebugWindow.LogMsg("Key pressed: " + key.ToString());
-
-        // Add a safety delay in between key presses
-        Thread.Sleep(safetyDelay);
+        if (weaponSetChanged)
+        {
+            int activeWeaponSet = GetActiveWeaponSet();
+            DebugWindow.LogMsg("Current WeaponSet: " + GetActiveWeaponSet().ToString());
+            if (activeWeaponSet != sourceWeaponSet)
+            {
+                PressKey(keyWeaponSwap);
+                DebugWindow.LogMsg("WeaponSet changed to: " + sourceWeaponSet.ToString());
+            }
+            weaponSetChanged = false;
+        }
     }
 
-    private ActorSkill getActorSkill(string skillName = null)
+    public bool LoadBlinkSkill()
     {
-        Actor _actor = GameController.Player.GetComponent<Actor>();
-        List<ActorSkill> actorSkills = _actor.ActorSkills;
+        if (!GameController.Player.HasComponent<Actor>()) return false;
 
-        if (actorSkills == null)
-        {
-            DebugWindow.LogError("Could not load Character skills. Try reloading Core");
-            return null;
-        }
+        helpers = new Helpers(_blinkSkillName);
 
-        return actorSkills.FirstOrDefault(s => s.Name == skillName);
-    }
+        blinkSkill = helpers.FetchBlinkSkill(GameController);
 
-    private void getSkillDetails(ActorSkill skill, List<string> properties = null)
-    {
-        if (skill == null)
-        {
-            DebugWindow.LogError("No valid skill selected. Nothing to show.");
-            return;
-        }
+        if (blinkSkill == null) return false;
 
-        DebugWindow.LogMsg($"=> Attributes of {skill.Name}:");
+        blinkCooldown = blinkSkill.Cooldown;
 
-        // Get all public properties
-        PropertyInfo[] skillProperties = skill.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance);
-
-        bool showAll = properties == null || properties.Count == 0;
-
-        foreach (PropertyInfo property in skillProperties)
-        {
-            // Skip if not showing all and this property is not in the list
-            if (!showAll && !properties.Contains(property.Name, StringComparer.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            try
-            {
-                object value = property.GetValue(skill);
-                string valueString = value?.ToString() ?? "null";
-
-                DebugWindow.LogMsg($"{property.Name}: {valueString}");
-            }
-            catch (Exception ex)
-            {
-                DebugWindow.LogMsg($"{property.Name}: Error getting value - {ex.Message}");
-            }
-        }
-
-    }
-
-    private void RunAutoBlink()
-    {
-
-        bool autoBlinkHotkeyPressed = Input.IsKeyDown(blinkHotKey);
-
-        if (autoBlinkHotkeyPressed)
-        {
-            if (!BlinkInCooldown)
-            {
-                ActorSkill blinkSkill = getActorSkill(_blinkSkillName);
-
-                if (blinkSkill == null)
-                {
-                    DebugWindow.LogError("Blink skill was not found");
-                    return;
-                }
-
-                if (!blinkSkill.CanBeUsed)
-                {
-                    return;
-                }
-
-                autoBlink();
-            }
-        }
+        return true;
     }
 }
