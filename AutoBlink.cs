@@ -176,19 +176,9 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
         {
             if (!blinkInCooldown && blinkSkill.CanBeUsed)
             {
-                // ActorSkill blinkSkill = helpers.FetchBlinkSkill(GameController);
-
-                // if (blinkSkill == null) 
-                // {
-                //     DebugWindow.LogError("The plugin could not find the Blink skill. Please check your skills and try again.");
-                //     return;
-
-                // }
-
                 try
                 {
                     sourceWeaponSet = GetActiveWeaponSet();
-                    DebugWindow.LogMsg("Current WeaponSet: " + GetActiveWeaponSet().ToString());
 
                     if (targetWeaponSet != sourceWeaponSet)
                     {
@@ -197,7 +187,6 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
                     }
 
                     // use Blink Skill by pressing dodge roll key
-                    // after blink needs a minimal extra delay before any other actions to account for the animation
                     PressKey(keyDodgeRoll);
 
                     // Add a safety delay in between key presses
@@ -231,12 +220,12 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
         if (weaponSetChanged)
         {
             int activeWeaponSet = GetActiveWeaponSet();
-            DebugWindow.LogMsg("Current WeaponSet: " + GetActiveWeaponSet().ToString());
+
             if (activeWeaponSet != sourceWeaponSet)
             {
                 PressKey(keyWeaponSwap);
-                DebugWindow.LogMsg("WeaponSet changed to: " + sourceWeaponSet.ToString());
             }
+            
             weaponSetChanged = false;
         }
     }
