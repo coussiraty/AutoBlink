@@ -1,4 +1,4 @@
-﻿using ExileCore2;
+using ExileCore2;
 using ExileCore2.PoEMemory.Components;
 using ExileCore2.PoEMemory.MemoryObjects;
 using ExileCore2.Shared.Cache;
@@ -22,17 +22,19 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
     private Camera Camera => GameController.IngameState.Camera;
     private bool passiveTreeOpen = false;
     private IngameUIElements IngameUi => GameController.IngameState.IngameUi;
-    ActorSkill blinkSkill = null;
+    private ActorSkill blinkSkill = null;
     private bool initialised = false;
+    private bool _isActive = false;
+
     private bool runPlugin =>
         Settings.Enable
         && initialised
         && Settings.IgnoreUIElements
         || (!IngameUi.TreePanel.IsVisible
             && !IngameUi.ChatTitlePanel.IsVisible);
+    
     private int safetyDelay => Settings.SafetyDelay;
     private int blinkAnimationDelay => Settings.BlinkAnimationDelay;
-
     private int targetWeaponSet => Settings.WeaponSet == "2" ? 1 : 0;
 
     private float blinkCooldown = 1000;
@@ -52,13 +54,64 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
     public override bool Initialise()
     {
         initialised = true;
-
+        GameController.PluginBridge.SaveMethod("AutoBlink.IsActive", () => _isActive);
+        LogMessage("AutoBlink.IsActive registered in PluginBridge");
         return base.Initialise();
+    }
+
+    private bool ShouldExecute(out string state)
+    {
+        if (!Settings.Enable)
+        {
+            state = "Plugin is disabled";
+            return false;
+        }
+
+        if (!GameController.Window.IsForeground())
+        {
+            state = "Game window is not focused";
+            return false;
+        }
+
+        if (GameController.Area.CurrentArea.IsHideout)
+        {
+            state = "Player is in hideout";
+            return false;
+        }
+
+        if (!GameController.Player.HasComponent<Life>())
+        {
+            state = "Cannot find player Life component";
+            return false;
+        }
+
+        var life = GameController.Player.GetComponent<Life>();
+        if (life.CurHP <= 0)
+        {
+            state = "Player is dead";
+            return false;
+        }
+
+        if (GameController.Player.TryGetComponent<Buffs>(out var buffComp))
+        {
+            if (buffComp.HasBuff("grace_period"))
+            {
+                state = "Grace period is active";
+                return false;
+            }
+        }
+
+        state = "Ready";
+        return true;
     }
 
     public override void Tick()
     {
-        if (!runPlugin) return;
+        if (!ShouldExecute(out _))
+        {
+            _isActive = false;
+            return;
+        }
 
         if (!LoadBlinkSkill()) return;
 
@@ -190,6 +243,7 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
             {
                 try
                 {
+                    _isActive = true; // Set active when starting blink sequence
                     sourceWeaponSet = GetActiveWeaponSet();
 
                     if (targetWeaponSet != sourceWeaponSet)
@@ -205,9 +259,11 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
                     Thread.Sleep(blinkAnimationDelay);
 
                     _blinkCooldownStopWatch.Restart();
+                    _isActive = false; // Reset active state when done
                 }
                 catch (Exception ex)
                 {
+                    _isActive = false; // Reset active state on error
                     DebugWindow.LogError($"{ex.Message}");
                 }
             }
@@ -223,7 +279,6 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
     private int GetActiveWeaponSet()
     {
         Stats stats = GameController.Player.GetComponent<Stats>();
-
         return stats?.ActiveWeaponSetIndex ?? 0;
     }
 
@@ -239,6 +294,7 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
             }
 
             weaponSetChanged = false;
+            _isActive = false; // Reset active state after weapon swap is restored
         }
     }
 
@@ -247,13 +303,11 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
         if (!GameController.Player.HasComponent<Actor>()) return false;
 
         helpers = new Helpers(_blinkSkillName);
-
         blinkSkill = helpers.FetchBlinkSkill(GameController);
 
         if (blinkSkill == null) return false;
 
         blinkCooldown = blinkSkill.Cooldown;
-
         return true;
     }
 }
