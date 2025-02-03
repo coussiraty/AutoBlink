@@ -1,4 +1,4 @@
-﻿using ExileCore2;
+using ExileCore2;
 using ExileCore2.PoEMemory.Components;
 using ExileCore2.PoEMemory.MemoryObjects;
 using ExileCore2.Shared.Cache;
@@ -6,7 +6,7 @@ using ExileCore2.Shared.Helpers;
 using ExileCore2.Shared.Nodes;
 using static ExileCore2.Shared.Nodes.HotkeyNodeV2;
 using Graphics = ExileCore2.Graphics;
-
+using System.Threading.Tasks;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -17,6 +17,7 @@ namespace AutoBlink;
 
 public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
 {
+    private bool _isActive = false;
     private readonly string _blinkSkillName = "BlinkPlayer";
     private Helpers helpers;
     private Camera Camera => GameController.IngameState.Camera;
@@ -31,6 +32,7 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
         || (!IngameUi.TreePanel.IsVisible
             && !IngameUi.ChatTitlePanel.IsVisible);
     private int safetyDelay => Settings.SafetyDelay;
+    private int  longestCastDelay => Settings.LongestCastDelay;
     private int blinkAnimationDelay => Settings.BlinkAnimationDelay;
 
     private int targetWeaponSet => Settings.WeaponSet == "2" ? 1 : 0;
@@ -76,7 +78,12 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
         RenderTextWeaponSet();
         RenderImageBlink();
     }
-
+    public override void AreaChange(AreaInstance area)
+    {
+        base.AreaChange(area);
+        GameController.PluginBridge.SaveMethod("AutoBlink.IsActive", () => _isActive);  // Fixed capitalization
+        LogMessage("AutoBlink.IsActive registered in PluginBridge (via AreaChange)");  // Fixed log message too
+    }
     private void RenderTextWeaponSet()
     {
         if (!Settings.Render.WeaponSet.Text.Enabled
@@ -180,7 +187,7 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
         helpers.DrawImage(Graphics, DirectoryFullName, imagePath, imageFilename, imgPosX, imgPosY, imgSizeX, imgSizeY, imgColor);
     }
 
-    private void RunAutoBlink()
+    private async void RunAutoBlink()
     {
         bool autoBlinkHotkeyPressed = Input.IsKeyDown(keyBlink);
 
@@ -190,8 +197,10 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
             {
                 try
                 {
+                    _isActive = true;
+                    LogMessage($"AutoBlink active state START: {_isActive}");
                     sourceWeaponSet = GetActiveWeaponSet();
-
+                    await Task.Delay(longestCastDelay);
                     if (targetWeaponSet != sourceWeaponSet)
                     {
                         PressKey(keyWeaponSwap);
@@ -202,22 +211,26 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
                     PressKey(keyDodgeRoll);
 
                     // Add a safety delay in between key presses
-                    Thread.Sleep(blinkAnimationDelay);
+                    await Task.Delay(blinkAnimationDelay);
 
                     _blinkCooldownStopWatch.Restart();
+                    _isActive = false;
+                    LogMessage($"AutoBlink active state END: {_isActive}");
                 }
                 catch (Exception ex)
                 {
                     DebugWindow.LogError($"{ex.Message}");
+                    _isActive = false;
+                    LogMessage($"AutoBlink active state ERROR: {_isActive}");
                 }
             }
         }
     }
 
-    private void PressKey(HotkeyNodeValue key)
+    private async Task PressKey(HotkeyNodeValue key)
     {
         InputHelper.SendInputPress(key);
-        Thread.Sleep(safetyDelay);
+        await Task.Delay(safetyDelay);
     }
 
     private int GetActiveWeaponSet()
@@ -227,7 +240,7 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
         return stats?.ActiveWeaponSetIndex ?? 0;
     }
 
-    public void RestoreSourceWeaponSet()
+    public async void RestoreSourceWeaponSet()
     {
         if (weaponSetChanged)
         {

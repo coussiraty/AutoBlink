@@ -1,4 +1,4 @@
-﻿using ExileCore2.Shared.Attributes;
+using ExileCore2.Shared.Attributes;
 using ExileCore2.Shared.Interfaces;
 using ExileCore2.Shared.Nodes;
 using System.Windows.Forms;
@@ -24,6 +24,9 @@ public class AutoBlinkSettings : ISettings
 
     [Menu(null, "In milliseconds")]
     public RangeNode<int> BlinkAnimationDelay { get; set; } = new(400, 400, 2000);
+
+    [Menu(null, "In milliseconds")]
+    public RangeNode<int> LongestCastDelay { get; set; } = new(50, 320, 1000);
     
     [Menu(null, "Which WeaponSet is your Blink skill")]
     public TextNode WeaponSet { get; set; } = "2";
