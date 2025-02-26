@@ -187,46 +187,73 @@ public class AutoBlink : BaseSettingsPlugin<AutoBlinkSettings>
         helpers.DrawImage(Graphics, DirectoryFullName, imagePath, imageFilename, imgPosX, imgPosY, imgSizeX, imgSizeY, imgColor);
     }
 
-    private async void RunAutoBlink()
+
+private async void RunAutoBlink()
+{
+    bool autoBlinkHotkeyPressed = Input.IsKeyDown(keyBlink);
+
+    if (autoBlinkHotkeyPressed && !_isActive)
     {
-        bool autoBlinkHotkeyPressed = Input.IsKeyDown(keyBlink);
+        _isActive = true;
+        LogMessage("[AutoBlink] Space pressionado - Habilitando ação");
 
-        if (autoBlinkHotkeyPressed)
+        int activeWeaponSet = GetActiveWeaponSet();
+
+        if (!blinkInCooldown && blinkSkill.CanBeUsed)
         {
-            if (!blinkInCooldown && blinkSkill.CanBeUsed)
+            if (activeWeaponSet != targetWeaponSet)
             {
-                try
+                LogMessage($"[AutoBlink] Trocando para Weapon Set {targetWeaponSet + 1}...");
+                InputHelper.SendInputPress(keyWeaponSwap);
+
+                await Task.Delay(100);
+
+                if (GetActiveWeaponSet() != targetWeaponSet)
                 {
-                    _isActive = true;
-                    LogMessage($"AutoBlink active state START: {_isActive}");
-                    sourceWeaponSet = GetActiveWeaponSet();
-                    await Task.Delay(longestCastDelay);
-                    if (targetWeaponSet != sourceWeaponSet)
-                    {
-                        PressKey(keyWeaponSwap);
-                        weaponSetChanged = true;
-                    }
-
-                    // use Blink Skill by pressing dodge roll key
-                    PressKey(keyDodgeRoll);
-
-                    // Add a safety delay in between key presses
-                    await Task.Delay(blinkAnimationDelay);
-
-                    _blinkCooldownStopWatch.Restart();
+                    LogMessage("[AutoBlink] Falha na troca de armas, tentativa abortada.");
                     _isActive = false;
-                    LogMessage($"AutoBlink active state END: {_isActive}");
+                    return;
                 }
-                catch (Exception ex)
-                {
-                    DebugWindow.LogError($"{ex.Message}");
-                    _isActive = false;
-                    LogMessage($"AutoBlink active state ERROR: {_isActive}");
-                }
+
+                LogMessage("[AutoBlink] Weapon Set trocado com sucesso!");
             }
+
+            LogMessage("[AutoBlink] Usando Blink!");
+            InputHelper.SendInputPress(keyDodgeRoll);
+
+            _blinkCooldownStopWatch.Restart();
+        }
+        else
+        {
+            int alternativeWeaponSet = targetWeaponSet == 0 ? 1 : 0;
+
+            if (activeWeaponSet != alternativeWeaponSet)
+            {
+                LogMessage($"[AutoBlink] Trocando para Weapon Set {alternativeWeaponSet + 1} (Dodge Normal)...");
+                InputHelper.SendInputPress(keyWeaponSwap);
+
+                await Task.Delay(100);
+
+                if (GetActiveWeaponSet() != alternativeWeaponSet)
+                {
+                    LogMessage("[AutoBlink] Falha na troca de armas para o Dodge normal.");
+                    _isActive = false;
+                    return;
+                }
+
+                LogMessage("[AutoBlink] Weapon Set trocado para Dodge Normal!");
+            }
+
+            LogMessage("[AutoBlink] Blink em cooldown, usando Dodge normal.");
+            InputHelper.SendInputPress(keyDodgeRoll);
         }
     }
 
+    if (!autoBlinkHotkeyPressed)
+    {
+        _isActive = false;
+    }
+}
     private async Task PressKey(HotkeyNodeValue key)
     {
         InputHelper.SendInputPress(key);
